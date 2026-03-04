@@ -77,6 +77,8 @@ jobs:
                 proxy_set_header X-Real-IP \$remote_addr;
                 proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
                 proxy_set_header X-Forwarded-Proto https;
+                # Disable gzip from upstream so sub_filter can rewrite responses
+                proxy_set_header Accept-Encoding "";
 
                 sub_filter_once off;
                 sub_filter_types text/html application/javascript text/css application/json;
@@ -100,6 +102,8 @@ jobs:
                 proxy_set_header X-Real-IP \$remote_addr;
                 proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
                 proxy_set_header X-Forwarded-Proto https;
+                # Disable gzip from upstream so sub_filter can rewrite responses
+                proxy_set_header Accept-Encoding "";
 
                 # Rewrite URLs in responses to include base path
                 sub_filter_once off;
@@ -123,11 +127,6 @@ jobs:
                 proxy_set_header Upgrade \$http_upgrade;
                 proxy_set_header Connection "upgrade";
                 proxy_read_timeout 86400;
-              }
-
-              # Redirect root to base path
-              location = / {
-                return 302 ${BASE_PATH}/;
               }
             }
           }
