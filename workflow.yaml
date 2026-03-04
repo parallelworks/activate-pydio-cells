@@ -84,15 +84,15 @@ jobs:
                 # Fix the base tag so relative URLs resolve correctly
                 sub_filter '<base href="/"' '<base href="${BASE_PATH}/"';
 
+                # Inject START_REPOSITORY to prevent Pydio from parsing
+                # the session path prefix as workspace routing segments
+                sub_filter '"BOOTER_URL":"/' '"START_REPOSITORY":"","BOOTER_URL":"${BASE_PATH}/';
+
                 # Rewrite Pydio API endpoint configs (absolute paths in JS)
-                sub_filter '"BOOTER_URL":"/' '"BOOTER_URL":"${BASE_PATH}/';
                 sub_filter '"ENDPOINT_REST_API":"/' '"ENDPOINT_REST_API":"${BASE_PATH}/';
                 sub_filter '"ENDPOINT_S3_GATEWAY":"/' '"ENDPOINT_S3_GATEWAY":"${BASE_PATH}/';
                 sub_filter '"ENDPOINT_WEBSOCKET":"/' '"ENDPOINT_WEBSOCKET":"${BASE_PATH}/';
                 sub_filter '"PUBLIC_BASEURI":"/' '"PUBLIC_BASEURI":"${BASE_PATH}/';
-
-                # Handle redirects from Cells
-                proxy_redirect / ${BASE_PATH}/;
 
                 # WebSocket support
                 proxy_http_version 1.1;
