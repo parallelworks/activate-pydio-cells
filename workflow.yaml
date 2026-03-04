@@ -68,6 +68,7 @@ jobs:
           http {
             server {
               listen 80;
+              absolute_redirect off;
 
               # Strip base path and proxy to Cells
               location ${BASE_PATH}/ {
