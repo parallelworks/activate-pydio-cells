@@ -104,6 +104,7 @@ jobs:
       - name: Run Pydio Cells
         run: |
           set -x
+          export PATH="/usr/local/bin:/usr/bin:$PATH"
           cd ${{ inputs.rundir }}
           docker compose down
           docker compose up
