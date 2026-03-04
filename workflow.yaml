@@ -47,6 +47,7 @@ jobs:
           SERVICEPORT=$(cat SERVICEPORT)
           PW_USER=$(cat PW_USER)
           DATA_DIR="${{ inputs.data_dir }}"
+          BASE_PATH="/me/session/${PW_USER}/${{ sessions.session }}"
 
           # Write install config for Pydio Cells headless setup
           cat > ${{ inputs.rundir }}/install-conf.yml << 'INSTEOF'
@@ -59,6 +60,46 @@ jobs:
           dbtcpuser: pydio
           dbtcppassword: cells_db_pw
           INSTEOF
+
+          # Write nginx config to handle base path rewriting
+          cat > ${{ inputs.rundir }}/nginx.conf << NGINXEOF
+          worker_processes 1;
+          events { worker_connections 1024; }
+          http {
+            server {
+              listen 80;
+
+              # Strip base path and proxy to Cells
+              location ${BASE_PATH}/ {
+                proxy_pass http://cells:8080/;
+                proxy_set_header Host \\\$host;
+                proxy_set_header X-Real-IP \\\$remote_addr;
+                proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto https;
+
+                # Rewrite absolute paths in responses to include base path
+                sub_filter_once off;
+                sub_filter_types text/html application/javascript text/css application/json;
+                sub_filter 'href="/' 'href="${BASE_PATH}/';
+                sub_filter 'src="/' 'src="${BASE_PATH}/';
+                sub_filter 'action="/' 'action="${BASE_PATH}/';
+                sub_filter '"url":"/' '"url":"${BASE_PATH}/';
+                sub_filter "'/ws" "'${BASE_PATH}/ws";
+
+                # WebSocket support
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade \\\$http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_read_timeout 86400;
+              }
+
+              # Redirect root to base path
+              location = / {
+                return 302 ${BASE_PATH}/;
+              }
+            }
+          }
+          NGINXEOF
 
           # Write docker-compose.yml
           cat > ${{ inputs.rundir }}/docker-compose.yml << YAML
@@ -90,12 +131,20 @@ jobs:
                   CELLS_NO_TLS: "1"
                   CELLS_SITE_BIND: "0.0.0.0:8080"
                   CELLS_SITE_EXTERNAL: "http://localhost:8080"
+                  CELLS_MINIO_ALLOW_CROSSMOUNT: "true"
                 volumes:
                   - ./cells_data:/var/cells
                   - ./install-conf.yml:/pydio/config/install.yml:ro
                   - ${DATA_DIR}:/var/cells/data/user_files
+
+              nginx:
+                image: nginx:alpine
+                depends_on:
+                  - cells
+                volumes:
+                  - ./nginx.conf:/etc/nginx/nginx.conf:ro
                 ports:
-                  - "${SERVICEPORT}:8080"
+                  - "${SERVICEPORT}:80"
           YAML
       - name: Run Pydio Cells
         run: |
@@ -125,7 +174,7 @@ jobs:
           interval: 5s
           max-retries: 120
           timeout: 10s
-        run: curl --fail --silent "http://${remote_host}:${remote_port}" >/dev/null 2>&1
+        run: curl --fail --silent "http://${remote_host}:${remote_port}/me/session/$(cat ${{ inputs.rundir }}/PW_USER)/${{ sessions.session }}/" >/dev/null 2>&1
       - name: Update Session
         uses: parallelworks/update-session
         with:
