@@ -72,9 +72,9 @@ jobs:
               # Strip base path and proxy to Cells
               location ${BASE_PATH}/ {
                 proxy_pass http://cells:8080/;
-                proxy_set_header Host \\\$host;
-                proxy_set_header X-Real-IP \\\$remote_addr;
-                proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
                 proxy_set_header X-Forwarded-Proto https;
 
                 # Rewrite absolute paths in responses to include base path
@@ -88,7 +88,7 @@ jobs:
 
                 # WebSocket support
                 proxy_http_version 1.1;
-                proxy_set_header Upgrade \\\$http_upgrade;
+                proxy_set_header Upgrade \$http_upgrade;
                 proxy_set_header Connection "upgrade";
                 proxy_read_timeout 86400;
               }
