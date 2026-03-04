@@ -61,18 +61,19 @@ jobs:
           dbtcppassword: cells_db_pw
           INSTEOF
 
-          # Write nginx config to handle base path rewriting
+          # Write nginx config — ACTIVATE proxy strips the session prefix from
+          # all requests, so everything arrives at / . We use sub_filter to
+          # rewrite Pydio's HTML/JSON so the browser constructs URLs with the
+          # session prefix (which ACTIVATE needs to route back to us).
           cat > ${{ inputs.rundir }}/nginx.conf << NGINXEOF
           worker_processes 1;
           events { worker_connections 1024; }
           http {
             server {
               listen 80;
-              absolute_redirect off;
 
-              # Handle path without trailing slash (avoid 301 redirect loop)
-              location = ${BASE_PATH} {
-                proxy_pass http://cells:8080/;
+              location / {
+                proxy_pass http://cells:8080;
                 proxy_set_header Host \$host;
                 proxy_set_header X-Real-IP \$remote_addr;
                 proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -84,39 +85,6 @@ jobs:
                 sub_filter_types text/html application/javascript text/css application/json;
                 sub_filter '<base href="/"' '<base href="${BASE_PATH}/"';
                 sub_filter '"BOOTER_URL":"/' '"START_REPOSITORY":"","BOOTER_URL":"${BASE_PATH}/';
-                sub_filter '"ENDPOINT_REST_API":"/' '"ENDPOINT_REST_API":"${BASE_PATH}/';
-                sub_filter '"ENDPOINT_S3_GATEWAY":"/' '"ENDPOINT_S3_GATEWAY":"${BASE_PATH}/';
-                sub_filter '"ENDPOINT_WEBSOCKET":"/' '"ENDPOINT_WEBSOCKET":"${BASE_PATH}/';
-                sub_filter '"PUBLIC_BASEURI":"/' '"PUBLIC_BASEURI":"${BASE_PATH}/';
-
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade \$http_upgrade;
-                proxy_set_header Connection "upgrade";
-                proxy_read_timeout 86400;
-              }
-
-              # Strip base path and proxy to Cells
-              location ${BASE_PATH}/ {
-                proxy_pass http://cells:8080/;
-                proxy_set_header Host \$host;
-                proxy_set_header X-Real-IP \$remote_addr;
-                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto https;
-                # Disable gzip from upstream so sub_filter can rewrite responses
-                proxy_set_header Accept-Encoding "";
-
-                # Rewrite URLs in responses to include base path
-                sub_filter_once off;
-                sub_filter_types text/html application/javascript text/css application/json;
-
-                # Fix the base tag so relative URLs resolve correctly
-                sub_filter '<base href="/"' '<base href="${BASE_PATH}/"';
-
-                # Inject START_REPOSITORY to prevent Pydio from parsing
-                # the session path prefix as workspace routing segments
-                sub_filter '"BOOTER_URL":"/' '"START_REPOSITORY":"","BOOTER_URL":"${BASE_PATH}/';
-
-                # Rewrite Pydio API endpoint configs (absolute paths in JS)
                 sub_filter '"ENDPOINT_REST_API":"/' '"ENDPOINT_REST_API":"${BASE_PATH}/';
                 sub_filter '"ENDPOINT_S3_GATEWAY":"/' '"ENDPOINT_S3_GATEWAY":"${BASE_PATH}/';
                 sub_filter '"ENDPOINT_WEBSOCKET":"/' '"ENDPOINT_WEBSOCKET":"${BASE_PATH}/';
@@ -205,7 +173,7 @@ jobs:
           interval: 5s
           max-retries: 120
           timeout: 10s
-        run: curl --fail --silent "http://${remote_host}:${remote_port}/me/session/$(cat ${{ inputs.rundir }}/PW_USER)/${{ sessions.session }}/" >/dev/null 2>&1
+        run: curl --fail --silent "http://${remote_host}:${remote_port}/" >/dev/null 2>&1
       - name: Update Session
         uses: parallelworks/update-session
         with:
