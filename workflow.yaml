@@ -39,16 +39,17 @@ jobs:
     needs:
       - prep
     steps:
-      - name: Write install config
+      - name: Write configs and docker compose
         run: |
           set -x
           cd ${{ inputs.rundir }}
 
           SERVICEPORT=$(cat SERVICEPORT)
           PW_USER=$(cat PW_USER)
-          SESSION_BASE="/me/session/${PW_USER}/${{ sessions.session }}"
+          DATA_DIR="${{ inputs.data_dir }}"
 
-          cat > ${{ inputs.rundir }}/install-conf.yml << 'YAML'
+          # Write install config for Pydio Cells headless setup
+          cat > ${{ inputs.rundir }}/install-conf.yml << 'INSTEOF'
           frontendlogin: admin
           frontendpassword: ${{ inputs.admin_password }}
           dbconnectiontype: tcp
@@ -57,15 +58,9 @@ jobs:
           dbtcpname: cells
           dbtcpuser: pydio
           dbtcppassword: cells_db_pw
-          YAML
-      - name: Write docker compose file
-        run: |
-          set -x
-          cd ${{ inputs.rundir }}
+          INSTEOF
 
-          SERVICEPORT=$(cat SERVICEPORT)
-          DATA_DIR="${{ inputs.data_dir }}"
-
+          # Write docker-compose.yml
           cat > ${{ inputs.rundir }}/docker-compose.yml << YAML
             services:
               mysql:
@@ -86,6 +81,7 @@ jobs:
 
               cells:
                 image: pydio/cells:latest
+                restart: unless-stopped
                 depends_on:
                   mysql:
                     condition: service_healthy
@@ -104,7 +100,6 @@ jobs:
       - name: Run Pydio Cells
         run: |
           set -x
-          export PATH="/usr/local/bin:/usr/bin:$PATH"
           cd ${{ inputs.rundir }}
           docker compose down
           docker compose up
